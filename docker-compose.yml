@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  # Graph Database
+  neo4j:
+    image: neo4j:5.16.0-community
+    container_name: kg-neo4j
+    ports:
+      - "7474:7474" # HTTP
+      - "7687:7687" # Bolt
+    environment:
+      NEO4J_AUTH: neo4j/password
+      NEO4J_PLUGINS: '["apoc"]'  # Useful for graph algorithms
+    volumes:
+      - ./data/neo4j/data:/data
+      - ./data/neo4j/logs:/logs
+    networks:
+      - kg-net
+    healthcheck:
+        test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:7474 || exit 1"]
+        interval: 10s
+        timeout: 5s
+        retries: 5
+
+  # Relational Database (Users, Projects, Metadata)
+  postgres:
+    image: postgres:16-alpine
+    container_name: kg-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: kg_metadata
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    networks:
+      - kg-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d kg_metadata"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Cache / Task Queue Broker
+  redis:
+    image: redis:7-alpine
+    container_name: kg-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - kg-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  kg-net:
+    driver: bridge
